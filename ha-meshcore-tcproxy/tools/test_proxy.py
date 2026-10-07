@@ -102,7 +102,7 @@ class Client:
             p = await self.recv(1)
             if p is None:
                 return None
-            if len(p) and p[0] in (0x07, 0x08, 0x0A):
+            if len(p) and p[0] in (0x07, 0x08, 0x0A, 0x10, 0x11, 0x1B):
                 return p
         return None
 
@@ -570,33 +570,16 @@ async def test_get_msg_fans_out(proxy_port):
         return
     ok(f"c1 GET_MSG → 0x{msg_c1[0]:02x}")
 
-    # c2 should see the same message via fan-out broadcast (no GET_MSG of
-    # its own). Drain c2 until we find a matching 0x07/0x08. Need a
-    # generous window because c2 will also see broadcast 0x83 from the
-    # injector and we have to drain past those.
-    got_fanout = None
-    seen = []
-    t0 = time.monotonic()
-    while time.monotonic() - t0 < 10:
-        p = await c2.recv(1)
-        if p is None:
-            break
-        if len(p) == 0:
-            continue
-        seen.append(f"0x{p[0]:02x}")
-        if p[0] in (0x07, 0x08):
-            got_fanout = p
-            break
-    log.info("  c2 saw frames: %s", seen)
-
-    if got_fanout is None:
-        fail("c2 did not receive the message via fan-out")
-    elif got_fanout == msg_c1:
-        ok("c2 receives the same frame via fan-out broadcast")
+    # c2 must ask. The copy is the reply to its own GET_MSG, not a push.
+    msg_c2 = await c2.get_message()
+    if msg_c2 is None:
+        fail("c2 GET_MSG returned nothing")
+    elif msg_c2 == msg_c1:
+        ok("c2 receives the same frame as its own GET_MSG reply")
     else:
         fail(
-            f"c2 received a frame but bytes differ:\n"
-            f"  c1: {msg_c1.hex()}\n  c2: {got_fanout.hex()}"
+            f"c2 GET_MSG bytes differ:\n"
+            f"  c1: {msg_c1.hex()}\n  c2: {msg_c2.hex()}"
         )
 
     await c1.close()

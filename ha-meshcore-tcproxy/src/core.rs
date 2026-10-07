@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -36,6 +36,12 @@ const PUSH_EVENT_CODES: &[u8] = &[
 
 fn is_push_event(code: u8) -> bool {
     PUSH_EVENT_CODES.contains(&code)
+}
+
+/// Frames a queued GET_MSG can return. Each other client receives a copy
+/// as the reply to its own later GET_MSG, not as an unsolicited push.
+fn is_queued_message(code: u8) -> bool {
+    matches!(code, 0x07 | 0x08 | 0x10 | 0x11 | 0x1B)
 }
 
 /// What a request is waiting for, to know when to free the slot.
@@ -143,6 +149,7 @@ pub struct Core {
     // sends (0x03) never produce an ACK, so without eviction those
     // entries would accumulate forever.
     pending_acks: HashMap<[u8; 4], (ClientId, Instant)>,
+    msg_backlog: HashMap<ClientId, VecDeque<Vec<u8>>>,
 }
 
 impl Core {
@@ -173,6 +180,7 @@ impl Core {
             in_flight: None,
             pending_queue: VecDeque::new(),
             pending_acks: HashMap::new(),
+            msg_backlog: HashMap::new(),
         })
     }
 
@@ -577,6 +585,10 @@ impl Core {
         let cmd_code = cmd.payload[0];
         self.log_event("->", cmd_code, &cmd.payload);
 
+        if cmd_code == 0x0A && self.take_backlog_message(&cmd.client_id) {
+            return;
+        }
+
         // 1. Cache-only paths: serve from RAM / SQLite, never touch the radio.
         if self.try_serve_from_cache(cmd_code, &cmd).await {
             return;
@@ -823,6 +835,64 @@ impl Core {
         }
     }
 
+    /// Keep a copy of a queued message for every client except the one
+    /// whose GET_MSG just retrieved it. If that client already has a
+    /// GET_MSG waiting, answer it now so it does not hit an empty radio.
+    fn hold_message_for_others(&mut self, exclude: Option<&ClientId>, payload: &[u8]) {
+        let ids: Vec<ClientId> = self
+            .client_channels
+            .lock()
+            .unwrap()
+            .keys()
+            .copied()
+            .collect();
+        for id in ids {
+            if exclude.is_some_and(|ex| *ex == id) {
+                continue;
+            }
+            if let Some(pos) = self.pending_queue.iter().position(|queued| {
+                queued.client_id == Some(id) && queued.payload.first() == Some(&0x0A)
+            }) {
+                self.pending_queue.remove(pos);
+                self.send_to_client(&id, payload.to_vec());
+                continue;
+            }
+            self.msg_backlog
+                .entry(id)
+                .or_default()
+                .push_back(payload.to_vec());
+        }
+        let live: HashSet<ClientId> = self
+            .client_channels
+            .lock()
+            .unwrap()
+            .keys()
+            .copied()
+            .collect();
+        self.msg_backlog.retain(|id, _| live.contains(id));
+    }
+
+    fn take_backlog_message(&mut self, client_id: &ClientId) -> bool {
+        let frame = {
+            let Some(queue) = self.msg_backlog.get_mut(client_id) else {
+                return false;
+            };
+            let Some(frame) = queue.pop_front() else {
+                return false;
+            };
+            frame
+        };
+        if self
+            .msg_backlog
+            .get(client_id)
+            .is_some_and(|queue| queue.is_empty())
+        {
+            self.msg_backlog.remove(client_id);
+        }
+        self.send_to_client(client_id, frame);
+        true
+    }
+
     fn extract_radio_identity(&mut self, blob: &[u8]) {
         // SELF_INFO layout: [0]=0x05, [1]=adv_type, [2]=tx_power, [3]=max_tx_power,
         // [4..36]=pubkey, ... name at the tail (offset depends on whether sf/cr
@@ -988,12 +1058,11 @@ impl Core {
             self.send_to_client(&cid, payload.to_vec());
         }
 
-        // An incoming LoRa message delivered as the reply to a GET_MSG is
-        // a global event from the rest of the network's point of view:
-        // every connected client should see it. Fan out to the other
-        // clients (the originator just got it through send_to_client).
-        if cmd_code == 0x0A && matches!(code, 0x07 | 0x08 | 0x10 | 0x11) {
-            self.broadcast_to_others(client_id.as_ref(), payload);
+        // A queued message is not pushed. The client that asked already
+        // has it. Every other client gets a copy as its own next GET_MSG
+        // reply, which is what meshcore-py waits for.
+        if cmd_code == 0x0A && is_queued_message(code) {
+            self.hold_message_for_others(client_id.as_ref(), payload);
         }
 
         if is_terminator {
