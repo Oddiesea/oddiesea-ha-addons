@@ -1001,7 +1001,7 @@ impl Core {
 
         self.cache_response(resp_code, &payload).await;
 
-        if self.config.record_radio_rx {
+        if self.config.record_radio_rx && resp_code != 0x0E {
             let _ = self.state.insert_raw_rx(resp_code, &payload).await;
         }
 
@@ -1264,6 +1264,18 @@ impl Core {
 
     fn log_event(&self, arrow: &str, code: u8, payload: &[u8]) {
         if self.config.event_log_level == LogLevel::Off {
+            return;
+        }
+
+        // EXPORT_PRIVATE_KEY and the PRIVATE_KEY reply stay out of the log.
+        // The map uploader and MQTT auth send that command.
+        if (arrow == "->" && code == 0x17) || (arrow == "<-" && code == 0x0E) {
+            let type_name = if arrow == "->" {
+                "CMD_EXPORT_PRIVATE_KEY"
+            } else {
+                "PRIVATE_KEY"
+            };
+            tracing::info!("{arrow} {type_name}: payload omitted");
             return;
         }
 
