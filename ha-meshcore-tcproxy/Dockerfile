@@ -7,7 +7,9 @@ RUN apk add --no-cache build-base pkgconfig dbus-dev
 WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
-RUN cargo build --release --features ble
+# The Alpine Rust image links statically, and Alpine has no static libdbus.
+# A shared link runs on the Home Assistant base image, which has musl and libdbus.
+RUN RUSTFLAGS="-C target-feature=-crt-static" cargo build --release --features ble
 
 FROM ${BUILD_FROM}
 

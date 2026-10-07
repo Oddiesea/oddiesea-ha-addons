@@ -696,6 +696,8 @@ async def main():
         except asyncio.TimeoutError:
             proxy_proc.kill()
     await stop_fake()
+    if FAIL:
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
