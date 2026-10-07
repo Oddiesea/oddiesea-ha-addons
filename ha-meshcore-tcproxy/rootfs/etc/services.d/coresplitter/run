@@ -1,0 +1,78 @@
+#!/usr/bin/with-contenv bashio
+# Start Core Splitter from the add-on options.
+# TCP is the only connection used unless dev mode is on.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+radio_host="$(bashio::config 'radio_host')"
+radio_port="$(bashio::config 'radio_port')"
+log_level="$(bashio::config 'log_level')"
+baud="$(bashio::config 'baud')"
+
+export CORESPLITTER_DATA_DIR=/data
+export CORESPLITTER_LOG_LEVEL="${log_level}"
+export CORESPLITTER_TCP_FRONTEND_HOST=0.0.0.0
+export CORESPLITTER_TCP_FRONTEND_PORT=5000
+
+args=(--log-level "${log_level}")
+if bashio::config.true 'log_json'; then
+    args+=(--json)
+fi
+
+host_ip=""
+if host_ip="$(bashio::network.ipv4_address 2>/dev/null || true)"; then
+    host_ip="${host_ip%%/*}"
+    host_ip="${host_ip%%$'\n'*}"
+fi
+if bashio::var.is_empty "${host_ip}"; then
+    bashio::log.info "Clients can connect at tcp://<home-assistant-host>:5000"
+else
+    bashio::log.info "Clients can connect at tcp://${host_ip}:5000"
+fi
+
+if bashio::config.true 'dev_mode'; then
+    connection="$(bashio::config 'connection')"
+    case "${connection}" in
+        serial)
+            serial_port="$(bashio::config 'serial_port')"
+            if bashio::var.is_empty "${serial_port}" || [[ "${serial_port}" == "null" ]]; then
+                bashio::exit.nok "Set serial_port to the radio's serial device."
+            fi
+            exec /usr/bin/coresplitter --serial "${serial_port}" --baud "${baud}" "${args[@]}"
+            ;;
+        ble)
+            ble_address="$(bashio::config 'ble_address')"
+            if bashio::var.is_empty "${ble_address}" || [[ "${ble_address}" == "null" ]]; then
+                bashio::exit.nok "Set ble_address to the radio's Bluetooth address."
+            fi
+            ble_pin="$(bashio::config 'ble_pin')"
+            exec /usr/bin/coresplitter --ble "${ble_address}" --ble-pin "${ble_pin}" "${args[@]}"
+            ;;
+        *)
+            if bashio::var.is_empty "${radio_host}"; then
+                bashio::exit.nok "Set radio_host to the companion's TCP address."
+            fi
+            exec /usr/bin/coresplitter \
+                --tcp-backend-host "${radio_host}" \
+                --tcp-backend-port "${radio_port}" \
+                "${args[@]}"
+            ;;
+    esac
+fi
+
+if [[ "$(bashio::config 'connection')" != "tcp" ]] \
+    || bashio::config.has_value 'serial_port' \
+    || bashio::config.has_value 'ble_address'; then
+    bashio::log.warning "dev_mode is off, so serial and Bluetooth settings are ignored. The proxy uses TCP."
+fi
+
+if bashio::var.is_empty "${radio_host}"; then
+    bashio::exit.nok "Set radio_host to the companion's TCP address."
+fi
+
+exec /usr/bin/coresplitter \
+    --tcp-backend-host "${radio_host}" \
+    --tcp-backend-port "${radio_port}" \
+    "${args[@]}"

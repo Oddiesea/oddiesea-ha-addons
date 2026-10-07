@@ -1,0 +1,33 @@
+configuration:
+  radio_host:
+    name: Radio host
+    description: Hostname or IP address of the companion's TCP endpoint.
+  radio_port:
+    name: Radio port
+    description: TCP port of the companion endpoint. This is the radio, not the port clients use.
+  log_level:
+    name: Log level
+    description: How much the proxy writes. Verbose includes frame bytes, except a private-key export.
+  log_json:
+    name: JSON log
+    description: Write protocol events as JSON.
+  dev_mode:
+    name: Dev mode
+    description: Allow the untested serial and Bluetooth backends. Leave this off.
+  connection:
+    name: Connection
+    description: Used only when dev mode is on. TCP, serial, or Bluetooth.
+  serial_port:
+    name: Serial port
+    description: Serial device for the radio. Used only when dev mode is on and connection is serial.
+  baud:
+    name: Baud rate
+    description: Serial baud rate. Used only in dev mode.
+  ble_address:
+    name: Bluetooth address
+    description: Bluetooth address of the radio. Used only when dev mode is on and connection is Bluetooth.
+  ble_pin:
+    name: Bluetooth PIN
+    description: Pairing PIN. Used only in dev mode.
+network:
+  5000/tcp: Companion clients connect to the Home Assistant host on this port.

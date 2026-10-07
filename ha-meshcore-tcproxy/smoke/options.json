@@ -1,0 +1,10 @@
+{
+  "radio_host": "radio",
+  "radio_port": 5000,
+  "log_level": "info",
+  "log_json": false,
+  "dev_mode": false,
+  "connection": "tcp",
+  "baud": 115200,
+  "ble_pin": "123456"
+}
