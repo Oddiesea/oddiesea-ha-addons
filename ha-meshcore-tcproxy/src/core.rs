@@ -592,10 +592,15 @@ impl Core {
     async fn try_serve_from_cache(&self, cmd_code: u8, cmd: &ClientCommand) -> bool {
         match cmd_code {
             0x01 => {
+                // The proxy already negotiated app version 3. A client's
+                // APPSTART must not reach the radio, or a reconnect can
+                // change the frame format under the other clients.
                 if let Some(ref blob) = self.self_info_raw {
                     self.send_to_client(&cmd.client_id, blob.clone());
-                    return true;
+                } else {
+                    self.send_to_client(&cmd.client_id, vec![0x01, 0x01]);
                 }
+                return true;
             }
             0x16 => {
                 if let Some(ref blob) = self.device_info_raw {
@@ -1296,7 +1301,9 @@ fn build_appstart() -> Vec<u8> {
     let app_name = b"coresplitter";
     let mut payload = Vec::with_capacity(3 + app_name.len());
     payload.push(0x01);
-    payload.push(1);
+    // Version 3 is what current companions send. The radio then emits
+    // CONTACT_MSG_RECV_V3 and CHANNEL_MSG_RECV_V3, which include SNR.
+    payload.push(3);
     payload.extend_from_slice(app_name);
     payload
 }
