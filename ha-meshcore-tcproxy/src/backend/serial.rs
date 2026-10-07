@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio_serial::SerialPortBuilderExt;
+use tokio_serial::{SerialPort, SerialPortBuilderExt};
 
 use super::RadioIo;
 use crate::protocol::frame;
@@ -15,6 +15,14 @@ pub async fn connect(path: &str, baud: u32) -> Result<RadioIo> {
     serial
         .set_exclusive(false)
         .context("failed to set serial exclusive mode")?;
+
+    // Native-USB CDC radios withhold TX until the host asserts DTR.
+    serial
+        .write_data_terminal_ready(true)
+        .context("failed to assert DTR")?;
+    serial
+        .write_request_to_send(true)
+        .context("failed to assert RTS")?;
 
     let (send_tx, mut send_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let (recv_tx, recv_rx) = mpsc::unbounded_channel::<Vec<u8>>();
