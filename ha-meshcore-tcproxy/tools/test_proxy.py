@@ -215,12 +215,12 @@ async def test_multi_client(proxy_port):
             break
         if len(p) == 0:
             continue
-        if p[0] == 0x08 and b"Multi-client test" in p:
+        if p[0] == 0x11 and b"FakeRadio: Multi-client test" in p:
             got_broadcast = True
             break
 
     if got_broadcast:
-        ok("c2 receives CHANNEL_MSG_RECV (0x08) via broadcast_to_others")
+        ok("c2 receives CHANNEL_MSG_RECV_V3 (0x11) with the node name prefix")
     else:
         fail("c2 did not receive broadcast message")
 
@@ -440,14 +440,13 @@ async def test_long_message(proxy_port):
         p = await c2.recv(2)
         if p is None or len(p) == 0:
             continue
-        if p[0] == 0x08:
-            txt_rx = p[8:].decode("utf-8", errors="replace") if len(p) > 8 else ""
-            if "Lorem" in txt_rx or len(txt_rx) > 100:
-                received = True
-                break
+        if p[0] == 0x11 and b"FakeRadio: " in p and b"Lorem" in p:
+            txt_rx = p.decode("utf-8", errors="replace")
+            received = True
+            break
 
     if received:
-        ok(f"c2 receives CHANNEL_MSG_RECV (0x08) with long text ({len(txt_rx)} chars)")
+        ok(f"c2 receives CHANNEL_MSG_RECV_V3 (0x11) with the node name and long text")
     else:
         fail("c2 did not receive long message broadcast in 6s")
 
@@ -482,12 +481,16 @@ async def test_send_contact_msg(proxy_port):
         p = await c2.recv(2)
         if p is None or len(p) == 0:
             continue
-        if p[0] == 0x07 and b"Hello contact" in p:
+        if (
+            p[0] == 0x10
+            and p[4:10] == bytes.fromhex("deadbeefcafe")
+            and b"Hello contact" in p
+        ):
             got_broadcast = True
             break
 
     if got_broadcast:
-        ok("c2 receives CONTACT_MSG_RECV (0x07) via broadcast_to_others with correct text")
+        ok("c2 receives CONTACT_MSG_RECV_V3 (0x10) with the radio pubkey prefix")
     else:
         fail("c2 did not receive 0x07 broadcast with expected text")
 

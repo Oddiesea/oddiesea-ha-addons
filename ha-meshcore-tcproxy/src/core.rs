@@ -735,7 +735,7 @@ impl Core {
         self.client_channels.lock().unwrap().contains_key(client_id)
     }
 
-    /// Synthesize a CONTACT_MSG_RECV (0x07) for the rest of the clients so
+    /// Synthesize a CONTACT_MSG_RECV_V3 (0x10) for the rest of the clients so
     /// they see this message as if it had arrived over LoRa from the radio.
     async fn synthesize_contact_echo(&self, sender: &ClientId, payload: &[u8]) {
         let Some(pk) = self.radio_pubkey else {
@@ -747,11 +747,13 @@ impl Core {
         let ts = u32::from_le_bytes(payload[3..7].try_into().unwrap_or([0; 4])) as i64;
         let text = String::from_utf8_lossy(&payload[13..]).to_string();
 
-        let mut fake = Vec::with_capacity(13 + text.len());
-        fake.push(0x07);
+        let mut fake = Vec::with_capacity(16 + text.len());
+        fake.push(0x10);
+        fake.push(0); // snr
+        fake.extend_from_slice(&[0, 0]);
         fake.extend_from_slice(from_key);
         fake.push(0); // path_len
-        fake.push(msg_type); // txt_type
+        fake.push(msg_type);
         fake.extend_from_slice(&payload[3..7]); // timestamp
         fake.extend_from_slice(text.as_bytes());
         self.broadcast_to_others(Some(sender), &fake);
@@ -762,7 +764,9 @@ impl Core {
             .await;
     }
 
-    /// Synthesize a CHANNEL_MSG_RECV (0x08) for the rest of the clients.
+    /// Synthesize a CHANNEL_MSG_RECV_V3 (0x11) for the rest of the clients.
+    /// The text is `name: message`, which is how the MeshCore integration
+    /// splits a channel frame into sender and body.
     async fn synthesize_channel_echo(&self, sender: &ClientId, payload: &[u8]) {
         let Some(pk) = self.radio_pubkey else {
             tracing::warn!("no radio pubkey known, skipping synthetic broadcast for SEND_CHAN_MSG");
@@ -772,19 +776,25 @@ impl Core {
         let channel = payload[2] as i64;
         let ts = u32::from_le_bytes(payload[3..7].try_into().unwrap_or([0; 4])) as i64;
         let text = String::from_utf8_lossy(&payload[7..]).to_string();
+        let echoed = match self.radio_name.as_deref() {
+            Some(name) if !name.is_empty() => format!("{name}: {text}"),
+            _ => text.clone(),
+        };
 
-        let mut fake = Vec::with_capacity(8 + text.len());
-        fake.push(0x08);
+        let mut fake = Vec::with_capacity(11 + echoed.len());
+        fake.push(0x11);
+        fake.push(0); // snr
+        fake.extend_from_slice(&[0, 0]);
         fake.push(payload[2]); // channel
         fake.push(0); // path_len
         fake.push(0); // txt_type = text
         fake.extend_from_slice(&payload[3..7]); // timestamp
-        fake.extend_from_slice(text.as_bytes());
+        fake.extend_from_slice(echoed.as_bytes());
         self.broadcast_to_others(Some(sender), &fake);
 
         let _ = self
             .state
-            .insert_message("channel", Some(from_key), Some(channel), &text, ts)
+            .insert_message("channel", Some(from_key), Some(channel), &echoed, ts)
             .await;
     }
 
