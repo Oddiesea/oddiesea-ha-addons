@@ -10,6 +10,8 @@ Set **Radio host** and **Radio port** to the companion's TCP endpoint. The defau
 
 Contacts, channels, and the radio's identity are kept in SQLite under the add-on's data directory. A client that asks for those gets the stored copy, so the radio is not queried once per client.
 
+**Clear cache** deletes that database on the next start, then turns itself off. Turn it on and restart the add-on. Clients see an empty list until the proxy has read the radio again. Channel secrets that existed only in the cache are dropped and read from the radio with the rest.
+
 ## MeshCore for Home Assistant
 
 In the [MeshCore integration](https://github.com/meshcore-dev/meshcore-ha), choose connection type TCP. Use the host from the add-on log, and port 5000.

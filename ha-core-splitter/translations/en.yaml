@@ -14,6 +14,9 @@ configuration:
   dev_mode:
     name: Dev mode
     description: Allow the untested serial and Bluetooth backends. Leave this off.
+  clear_cache:
+    name: Clear cache
+    description: Delete the stored contacts, channels, and radio identity on the next start, then turn this off. Restart the add-on after enabling it.
   connection:
     name: Connection
     description: Used only when dev mode is on. TCP, serial, or Bluetooth.

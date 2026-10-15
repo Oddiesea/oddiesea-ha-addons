@@ -1,6 +1,6 @@
 name: MeshCore TCP Proxy
 version: "0.1.0"
-slug: ha-meshcore-tcproxy
+slug: ha-core-splitter
 description: Share one MeshCore companion radio with Home Assistant and other TCP clients.
 url: https://github.com/ogarcia/coresplitter
 arch:
@@ -28,6 +28,7 @@ options:
   log_level: info
   log_json: false
   dev_mode: false
+  clear_cache: false
   connection: tcp
   baud: 115200
   ble_pin: "123456"
@@ -37,9 +38,10 @@ schema:
   log_level: list(off|error|warn|info|debug|verbose)
   log_json: bool
   dev_mode: bool
+  clear_cache: bool
   connection: list(tcp|serial|ble)
   serial_port: device(subsystem=tty)?
   baud: int(9600,921600)
   ble_address: str?
   ble_pin: str
-image: ghcr.io/oddiesea/ha-meshcore-tcproxy
+image: ghcr.io/oddiesea/ha-core-splitter

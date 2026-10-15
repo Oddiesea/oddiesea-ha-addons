@@ -32,6 +32,12 @@ else
     bashio::log.info "Clients can connect at tcp://${host_ip}:5000"
 fi
 
+if bashio::config.true 'clear_cache'; then
+    rm -f /data/state.db /data/state.db-wal /data/state.db-shm
+    bashio::addon.option clear_cache "^false"
+    bashio::log.info "Cleared the radio cache. It will refill from the radio."
+fi
+
 if bashio::config.true 'dev_mode'; then
     connection="$(bashio::config 'connection')"
     case "${connection}" in

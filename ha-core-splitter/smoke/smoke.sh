@@ -11,11 +11,11 @@ cargo build
 echo "Running fake-radio protocol tests"
 python3 tools/test_proxy.py
 
-IMAGE="ha-meshcore-tcproxy:smoke"
+IMAGE="ha-core-splitter:smoke"
 echo "Building the add-on image"
 docker build -t "${IMAGE}" "${ROOT}"
 
-NET="ha-meshcore-tcproxy-smoke"
+NET="ha-core-splitter-smoke"
 docker rm -f smoke-supervisor smoke-radio smoke-proxy >/dev/null 2>&1 || true
 docker network rm "${NET}" >/dev/null 2>&1 || true
 docker network create "${NET}"

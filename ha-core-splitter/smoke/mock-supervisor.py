@@ -46,7 +46,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/addons/self/info":
             self._send(
                 {
-                    "slug": "ha-meshcore-tcproxy",
+                    "slug": "ha-core-splitter",
                     "name": "MeshCore TCP Proxy",
                     "options": OPTIONS,
                     "state": "started",

@@ -20,4 +20,4 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Run the add-on smoke script
-        run: ha-meshcore-tcproxy/smoke/smoke.sh
+        run: ha-core-splitter/smoke/smoke.sh

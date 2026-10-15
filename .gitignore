@@ -1,5 +1,5 @@
 .vscode/
-ha-meshcore-tcproxy/target/
-ha-meshcore-tcproxy/data/
+ha-core-splitter/target/
+ha-core-splitter/data/
 **/__pycache__/
 

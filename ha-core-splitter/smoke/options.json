@@ -4,6 +4,7 @@
   "log_level": "info",
   "log_json": false,
   "dev_mode": false,
+  "clear_cache": false,
   "connection": "tcp",
   "baud": 115200,
   "ble_pin": "123456"
